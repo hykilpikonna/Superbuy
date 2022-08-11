@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass, field
 from types import SimpleNamespace
 from enum import Enum
 from typing import Optional, List, Any, Union
@@ -36,6 +37,67 @@ class LoginData:
     userName: str
     nikeName: str
     currencyCode: str
+
+
+class TaobaoStore:
+    name: str
+    url: str
+
+
+class TaobaoItem:
+    name: str
+    url: str
+    promises: list[str]
+    price: str
+    qty: str
+    origPrice: str | None = None
+    sel: list[tuple[str, str]] | None = None
+
+
+class TaobaoOrder:
+    id: str
+    date: str
+    store: TaobaoStore
+    items: list[TaobaoItem]
+    priceTotal: str
+    priceDelivery: str
+    status: str
+    delivery: dict
+
+
+@dataclass
+class CreateOrder:
+    diybuyUserRemark: str
+    shopId: str
+    shopName: str
+    goodsList: list[CreateGood]
+    goodsPrefix: str = 'TB'
+    guaranteeFlag: int = 0
+
+
+@dataclass
+class CreateGood:
+    desc: str
+    goodsId: str
+    inventory: int
+    name: str
+    num: int
+    shopName: str
+    shopUrl: str
+    skus: str
+    totalPrice: float
+    url: str
+    riskinfor: list = field(default_factory=list)
+    prifex: str = "TB"
+    protips: str = ''
+    remark: str = '自助购物'
+    thumb: str = 'https://a-z-animals.com/media/2021/11/sunny-cat-picture-id508030340-1024x535.jpg'
+    warehouseId: int = 1
+    takeOutInvoice: int = 1
+    openPackaging: int = 1
+    needCheck: int = 1
+    checkedContraband: int = 1
+    samplingInspection: int = 0
 
 
 class Currency(Enum):
