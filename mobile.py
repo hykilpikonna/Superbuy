@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -129,9 +130,44 @@ def create_diy_order(create: list[TaobaoOrder]):
         time.sleep(10)
 
 
+def fill_express_no(taobao_data: list[TaobaoOrder]):
+    orders = gateway_order_list()
+    for o in orders:
+        for i in o.Items:
+            # 审核通过 means the delivery number hasn't been inputted yet
+            if i.StatusName != '审核通过':
+                continue
+
+            # Find item in taobao
+            tb = next(to for to in taobao_data for ti in to.items if get_url_param(ti.url, 'id') == i.goodsCode)
+
+            # Check delivery status
+            if tb.status != '卖家已发货':
+                continue
+
+            # Find delivery company's id
+            data = {'warehouseId': i.WarehouseId, 'delivery_company': find_delivery_id(tb.delivery.expressName),
+                    'item_id': i.ItemId, 'express_no': tb.delivery.expressId}
+
+            # Send request
+            print(f'Filling express no for {i.GoodsName}')
+            resp = r.post('https://www.superbuy.com/order/diybuy/fillexpressno', data=data).json()
+            # Not my typo, it's their typo
+            assert resp['code'] == 'sucess', str(resp) + str(data)
+            print(resp)
+
+
 def load_taobao(p: str = 'bought_items.json') -> list[TaobaoOrder]:
     p = Path(p)
     return js(p.read_text())
+
+
+delivery_companies: list[SuperbuyDeliveryCompany] = js(Path('data/delivery.json').read_text('utf-8'))
+delivery_name_map = {d.name: d for d in delivery_companies}
+
+
+def find_delivery_id(name: str) -> int:
+    return delivery_name_map[name].id if name in delivery_name_map else -1
 
 
 app = FastAPI()
@@ -154,4 +190,6 @@ def taobao_fill_delivery(body: Any = Body):
 
 
 if __name__ == '__main__':
+    print(login_cached(os.environ['user'], os.environ['pass']))
     # print(r.get(f'https://api.superbuy.com/gateway/oauth2/personalcenter/{USERID}').json())
+    fill_express_no(load_taobao())

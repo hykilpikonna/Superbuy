@@ -27,7 +27,7 @@ class GatewayOrderItem:
     openPackaging: int
     refund: int
     additionalAllPhotoList: List[Any]
-    statusName: str
+    StatusName: str
     additionalServiceVideoUrl: None
     hasHdQcVideoService: int
 

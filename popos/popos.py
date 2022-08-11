@@ -54,6 +54,18 @@ class TaobaoItem:
     sel: list[tuple[str, str]] | None = None
 
 
+class TaobaoAddress:
+    place: str
+    time: str
+
+
+class TaobaoDelivery:
+    expressName: str
+    address: list[TaobaoAddress]
+    isSuccess: str
+    expressId: str
+
+
 class TaobaoOrder:
     id: str
     date: str
@@ -62,7 +74,13 @@ class TaobaoOrder:
     priceTotal: str
     priceDelivery: str
     status: str
-    delivery: dict
+    delivery: TaobaoDelivery
+
+
+class SuperbuyDeliveryCompany:
+    id: int
+    reg_mail_no: str
+    name: str
 
 
 @dataclass
