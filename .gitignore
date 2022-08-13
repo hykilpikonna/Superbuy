@@ -153,3 +153,4 @@ cython_debug/
 crawler
 .config
 index-data/
+tmp.json
