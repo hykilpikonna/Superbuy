@@ -1,0 +1,4 @@
+requests
+fastapi
+hypy_utils
+uvicorn
