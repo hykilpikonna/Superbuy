@@ -104,6 +104,9 @@ def create_diy_order(create: list[TaobaoOrder]):
 
     :param create: List of taobao urls and details
     """
+    orders = gateway_order_list()
+    ids = [get_url_param(i.GoodsLink, 'id') for o in orders for i in o.Items if 'id=' in i.GoodsLink]
+    create = [o for o in create if o.date >= '2022-08-10' and not any(get_url_param(i.url, 'id') in ids for i in o.items)]
     for c in create:
         shop_name = c.store.name
         shop_id = crawl(c.items[0].url)['data']['shop']['shopId']
@@ -127,7 +130,6 @@ def create_diy_order(create: list[TaobaoOrder]):
         resp = r.post('https://front.superbuy.com/order/transport/create-diy-order', data=j.encode('utf-8'),
                       headers={'content-type': 'application/json; charset=UTF-8'}).json()
         print(resp)
-        time.sleep(10)
 
 
 def fill_express_no(taobao_data: list[TaobaoOrder]):
@@ -177,9 +179,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True)
 @app.post('/taobao/fill_items')
 def taobao_fill_items(body: Any = Body):
     taobao_data: list[TaobaoOrder] = js(body)
-    orders = gateway_order_list()
-    ids = [get_url_param(i.GoodsLink, 'id') for o in orders for i in o.Items if 'id=' in i.GoodsLink]
-    create_diy_order([o for o in taobao_data if o.date >= '2022-08-10' and not any(get_url_param(i.url, 'id') in ids for i in o.items)])
+    create_diy_order(taobao_data)
 
 
 @app.post('/taobao/fill_delivery')
@@ -190,6 +190,7 @@ def taobao_fill_delivery(body: Any = Body):
 
 
 if __name__ == '__main__':
-    print(login_cached(os.environ['user'], os.environ['pass']))
+    print(login(os.environ['user'], os.environ['pass']))
     # print(r.get(f'https://api.superbuy.com/gateway/oauth2/personalcenter/{USERID}').json())
+    create_diy_order(load_taobao())
     fill_express_no(load_taobao())
