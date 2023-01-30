@@ -286,8 +286,7 @@ class OrderListData:
     warehouse_list: List[WarehouseList]
 
 
-
-def js(s: str | Response):
+def jsn(s: str | Response):
     if isinstance(s, Response):
         s = s.text
     return json.loads(s, object_hook=lambda d: SimpleNamespace(**d))
