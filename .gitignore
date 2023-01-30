@@ -152,5 +152,8 @@ cython_debug/
 .idea/
 crawler
 .config
-index-data/
+index-data
+index-data-en
 tmp.json
+.DS_Store
+._*
