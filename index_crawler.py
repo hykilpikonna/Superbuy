@@ -27,33 +27,42 @@ def write_entry(data):
     return True
 
 
-def setup_proxy():
-    proxies = {
+def setup_proxy(session: requests.Session, verbose: bool = True):
+    url = 'https://ifconfig.me/ip'
+
+    # Setup proxy
+    ip = session.get(url).text.strip()
+    session.proxies = {
         'http': 'socks5://localhost:9050',
         'https': 'socks5://localhost:9050'
     }
+    proxy_ip = session.get(url).text.strip()
 
-    url = 'http://ifconfig.me/ip'
+    # Print ip
+    if verbose:
+        print(f'Raw ip: {ip}')
+        print(f'Proxy ip: {proxy_ip}')
 
-    ip = requests.get(url).text.strip()
-    print(f'Raw ip: {ip}')
-
-    proxy_ip = requests.get(url, proxies=proxies).text.strip()
-    print(f'Proxy ip: {proxy_ip}')
-
+    # ips shouldn't match
     assert ip != proxy_ip, 'Proxy did not start correctly.'
+
+    # Disable default requests behavior
+    def warn(*args, **kwargs):
+        raise ReferenceError('Use session.get instead of requests.get')
+    requests.get = warn
+    requests.post = warn
 
 
 if __name__ == '__main__':
-    setup_proxy()
+    setup_proxy(ses)
 
     prev_date_file = out_path / '0-prev-date.txt'
 
     def send_req(prev_date: int | None):
         add_param = {'logisticMinDeliveryTime': prev_date} if prev_date is not None else {}
 
-        r = requests.get('https://front.superbuy.com/logistic/get-index-pull-data',
-                         params={'onlyPackage': 1, **add_param}).json()
+        r = ses.get('https://front.superbuy.com/logistic/get-index-pull-data', params={'onlyPackage': 1, **add_param},
+                    cookies={'lang': 'zh-cn'}).json()
 
         assert r['state'] == 0, 'Request failed.'
 
