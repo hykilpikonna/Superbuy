@@ -1,2 +1,3 @@
-# SuperbuyAutomation
- Automatically add Taobao orders to Superbuy
+# Superbuy
+
+Automatically add Taobao orders to Superbuy
