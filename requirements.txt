@@ -3,3 +3,4 @@ fastapi
 hypy_utils
 uvicorn
 pysocks
+toml

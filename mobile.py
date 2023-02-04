@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 import threading
@@ -9,6 +10,7 @@ from typing import Literal
 from urllib.parse import urlparse, parse_qs
 
 import requests
+import toml
 from hypy_utils import json_stringify
 from hypy_utils.serializer import pickle_decode, pickle_encode
 
@@ -219,7 +221,13 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    print(login(os.environ['user'], os.environ['pass']))
+    par = argparse.ArgumentParser("Superbuy Order Helper")
+    par.add_argument("-a", "--auth", help="Auth config path", default="auth.toml")
+    args = par.parse_args()
+
+    auth = toml.loads(Path(args.auth).read_text())
+
+    print(login(auth['login'], auth['passwd']))
 
     # Start HTTP server asyncronously
     server = HTTPServer(("127.0.0.1", 12842), Handler)
