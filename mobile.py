@@ -25,7 +25,7 @@ r.headers.update({
     'app-key': 'aaa',
 })
 
-
+MIN_DATE = '2023-01-01'
 CONFIG_PATH = Path('.config/superbuy')
 
 
@@ -114,7 +114,7 @@ def create_diy_order(create: list[TaobaoOrder]):
     """
     orders = gateway_order_list()
     ids = [get_url_param(i.GoodsLink, 'id') for o in orders for i in o.Items if 'id=' in i.GoodsLink]
-    create = [o for o in create if o.date >= '2023-01-01' and not any(get_url_param(i.url, 'id') in ids for i in o.items)]
+    create = [o for o in create if o.date >= MIN_DATE and not any(get_url_param(i.url, 'id') in ids for i in o.items)]
     for c in create:
         shop_name = c.store.name
         shop_id = crawl(c.items[0].url)['data']['shop']['shopId']
