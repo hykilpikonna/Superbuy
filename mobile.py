@@ -139,7 +139,7 @@ def create_diy_order(create: list[TaobaoOrder]):
 
 
 def fill_express_no(taobao_data: list[TaobaoOrder]):
-    orders = gateway_order_list()
+    orders = gateway_order_list(orderType=4)
     for o in orders:
         for i in o.Items:
             # 审核通过 means the delivery number hasn't been inputted yet
@@ -150,7 +150,7 @@ def fill_express_no(taobao_data: list[TaobaoOrder]):
             tb = next(to for to in taobao_data for ti in to.items if get_url_param(ti.url, 'id') == i.goodsCode)
 
             # Check delivery status
-            if tb.status != '卖家已发货':
+            if tb.status != '卖家已发货' and tb.status != '快件已签收':
                 continue
 
             # Find delivery company's id
