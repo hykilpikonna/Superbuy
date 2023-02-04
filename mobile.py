@@ -1,18 +1,15 @@
 import os
+import threading
 import urllib.parse
-from json import JSONDecodeError
+import webbrowser
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse, parse_qs
 
 import requests
-import uvicorn
-from fastapi import Body, FastAPI
 from hypy_utils import json_stringify
 from hypy_utils.serializer import pickle_decode, pickle_encode
-from starlette.middleware.cors import CORSMiddleware
-from starlette.requests import Request
-from starlette.responses import PlainTextResponse
 
 from dotdotbuy_auth import sign_params, sign_api
 from popos.gateway_order import *
@@ -180,31 +177,55 @@ def find_delivery_id(name: str) -> int:
     return delivery_name_map[name].id if name in delivery_name_map else -1
 
 
-app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True)
+class Handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write("Up".encode())
 
+        print("Received!")
+        body = self.rfile.read(int(self.headers.get('content-length', 0))).decode()
 
-@app.post('/taobao', response_class=PlainTextResponse)
-def taobao_complete(body: Any = Body()):
-    taobao_data: list[TaobaoOrder] = jsn(body)
-    print(taobao_data)
-    create_diy_order(taobao_data)
-    fill_express_no(taobao_data)
-    return "Up"
+        if self.path.lower() == '/taobao':
+            taobao_data: list[TaobaoOrder] = jsn(body)
+            print(taobao_data)
+            create_diy_order(taobao_data)
+            fill_express_no(taobao_data)
 
+            # Stop process
+            raise KeyboardInterrupt()
 
-@app.post('/login-desktop', response_class=PlainTextResponse)
-async def fn_login(req: Request):
-    # await fetch("http://127.0.0.1:12842/login", {method: "POST", body: document.cookie})
-    body = (await req.body()).decode()
-    cookies = [[urllib.parse.unquote(k) for k in c.strip().split("=", 1)] for c in body.split(";")]
-    # noinspection PyTypeChecker
-    r.cookies.update(dict(cookies))
-    print(app_order_list())
-    return "Up"
+        # For desktop logins after captcha is added (not actually used)
+        if self.path.lower() == '/login':
+            # await fetch("http://127.0.0.1:12842/login", {method: "POST", body: document.cookie})
+            cookies = [[urllib.parse.unquote(k) for k in c.strip().split("=", 1)] for c in body.split(";")]
+            # noinspection PyTypeChecker
+            r.cookies.update(dict(cookies))
+            print(app_order_list())
+
+    def do_OPTIONS(self):
+        self.send_response(200, "ok")
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
 
 
 if __name__ == '__main__':
     print(login(os.environ['user'], os.environ['pass']))
-    print(gateway_order_list())
-    uvicorn.run(app, host="127.0.0.1", port=12842)
+
+    # Start HTTP server asyncronously
+    server = HTTPServer(("127.0.0.1", 12842), Handler)
+
+    def serve():
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            server.server_close()
+
+    thread = threading.Thread(target=serve)
+    thread.start()
+
+    # Open browser
+    webbrowser.open_new_tab(f"https://buyertrade.taobao.com/trade/itemlist/list_bought_items.htm?script=12842")
+
