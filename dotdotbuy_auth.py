@@ -31,7 +31,8 @@ def sign_api(params: dict[str, str]):
     params.update({
         'user_id': params['userId'], 'access_token': params['accessToken'],
         'app_key': 'aaa', 'partner_id': '', 'service': 'dotdotbuy',
-        'timestamp': timestamp()
+        'timestamp': timestamp(),
+        'ddb-mobile-platform': 'iOS', 'ddb-mobile-version': '14.4', 'systemversion': '14.4'
     })
 
     signed_keys = ['access_token', 'app_key', 'partner_id', 'service', 'timestamp', 'user_id']
