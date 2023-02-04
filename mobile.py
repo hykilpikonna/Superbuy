@@ -1,20 +1,22 @@
-import json
 import os
-import time
+import urllib.parse
+from json import JSONDecodeError
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Any, Literal
+from typing import Literal
 from urllib.parse import urlparse, parse_qs
 
 import requests
+import uvicorn
 from fastapi import Body, FastAPI
 from hypy_utils import json_stringify
 from hypy_utils.serializer import pickle_decode, pickle_encode
 from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse
 
 from dotdotbuy_auth import sign_params, sign_api
-from popos.popos import *
 from popos.gateway_order import *
+from popos.popos import *
 
 r = requests.Session()
 r.encoding = 'utf-8'
@@ -33,11 +35,11 @@ def user_id() -> str:
 
 def login(user: str, passwd: str) -> LoginData:
     # Desktop:
-    resp: SuperbuyResponse = js(r.post('https://login.superbuy.com/api/site/login', data={'login_name': user, 'password': passwd}))
-    assert resp.state == 0, resp
+    # resp: SuperbuyResponse = jsn(r.post('https://login.superbuy.com/api/site/login', data={'login_name': user, 'password': passwd}))
+    # assert resp.state == 0, resp
 
     # Mobile:
-    resp: SuperbuyResponse = js(r.post('https://api.superbuy.com/auth/login', data={'loginToken': user, 'password': passwd}))
+    resp: SuperbuyResponse = jsn(r.post('https://api.superbuy.com/auth/login', data={'loginToken': user, 'password': passwd}))
     assert resp.state == 0, resp
     data: LoginData = resp.data
 
@@ -62,10 +64,10 @@ def login_cached(user: str, passwd: str):
 
 
 def app_order_list():
-    # endpoint = 'https://front.superbuy.com/package/parcel/expert-send-list'
+    # Mobile
     endpoint = 'https://front.superbuy.com/package/parcel/app-list'
     req = r.get(endpoint, params=dict(pageSize=100, currPage=1, includeOverdueItemFlg=1), headers=sign_params(dict(r.headers)))
-    resp: SuperbuyResponse = js(req)
+    resp: SuperbuyResponse = jsn(req)
     return resp
 
 
@@ -73,11 +75,12 @@ def gateway_order_list(limit: int = 200, type: Literal['storage', 'payment', 'al
     """
     Get a list of orders that are already added to the account.
     """
+    # Mobile
     endpoint = f'https://api.superbuy.com/gateway/orderpkg/list/{user_id()}/1/{limit}'
     print(endpoint)
     print(sign_api(dict(r.headers)))
     req = r.get(endpoint, params=dict(type=type, orderType=orderType), headers=sign_api(dict(r.headers)))
-    resp: PaginatedResponse = js(req)
+    resp: PaginatedResponse = jsn(req)
     assert resp.Code == 10000, resp
     return resp.List
 
@@ -90,12 +93,17 @@ def crawl(item_url: str) -> dict:
     id = get_url_param(item_url, 'id')
     out_path = Path(f'crawler/{id}.json')
 
-    if not out_path.is_file():
-        print(f'Crawling {id}...')
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(r.post('https://front.superbuy.com/crawler/', data={"needSoldOutSkuInfo": 1, "location": 2, "goodUrl": item_url}).text)
-
-    return json.loads(out_path.read_text())
+    while True:
+        if not out_path.is_file():
+            print(f'Crawling {id}...')
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            resp = r.post('https://front.superbuy.com/crawler/', data={"needSoldOutSkuInfo": 1, "location": 2, "goodUrl": item_url})
+            if resp.status_code != 200:
+                print(f"Request failed: {resp.status_code}")
+                assert input("Retry? [y/N]").lower() == 'y'
+                continue
+            out_path.write_text(resp.text)
+            return resp.json()
 
 
 def create_diy_order(create: list[TaobaoOrder]):
@@ -106,7 +114,7 @@ def create_diy_order(create: list[TaobaoOrder]):
     """
     orders = gateway_order_list()
     ids = [get_url_param(i.GoodsLink, 'id') for o in orders for i in o.Items if 'id=' in i.GoodsLink]
-    create = [o for o in create if o.date >= '2022-08-10' and not any(get_url_param(i.url, 'id') in ids for i in o.items)]
+    create = [o for o in create if o.date >= '2023-01-01' and not any(get_url_param(i.url, 'id') in ids for i in o.items)]
     for c in create:
         shop_name = c.store.name
         shop_id = crawl(c.items[0].url)['data']['shop']['shopId']
@@ -161,10 +169,10 @@ def fill_express_no(taobao_data: list[TaobaoOrder]):
 
 def load_taobao(p: str = 'bought_items.json') -> list[TaobaoOrder]:
     p = Path(p)
-    return js(p.read_text())
+    return jsn(p.read_text())
 
 
-delivery_companies: list[SuperbuyDeliveryCompany] = js(Path('data/delivery.json').read_text('utf-8'))
+delivery_companies: list[SuperbuyDeliveryCompany] = jsn(Path('data/delivery.json').read_text('utf-8'))
 delivery_name_map = {d.name: d for d in delivery_companies}
 
 
@@ -176,21 +184,27 @@ app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True)
 
 
-@app.post('/taobao/fill_items')
-def taobao_fill_items(body: Any = Body):
-    taobao_data: list[TaobaoOrder] = js(body)
-    create_diy_order(taobao_data)
-
-
-@app.post('/taobao/fill_delivery')
-def taobao_fill_delivery(body: Any = Body):
-    taobao_data: list[TaobaoOrder] = js(body)
+@app.post('/taobao', response_class=PlainTextResponse)
+def taobao_complete(body: Any = Body()):
+    taobao_data: list[TaobaoOrder] = jsn(body)
     print(taobao_data)
-    pass
+    create_diy_order(taobao_data)
+    fill_express_no(taobao_data)
+    return "Up"
+
+
+@app.post('/login-desktop', response_class=PlainTextResponse)
+async def fn_login(req: Request):
+    # await fetch("http://127.0.0.1:12842/login", {method: "POST", body: document.cookie})
+    body = (await req.body()).decode()
+    cookies = [[urllib.parse.unquote(k) for k in c.strip().split("=", 1)] for c in body.split(";")]
+    # noinspection PyTypeChecker
+    r.cookies.update(dict(cookies))
+    print(app_order_list())
+    return "Up"
 
 
 if __name__ == '__main__':
     print(login(os.environ['user'], os.environ['pass']))
-    # print(r.get(f'https://api.superbuy.com/gateway/oauth2/personalcenter/{USERID}').json())
-    create_diy_order(load_taobao())
-    fill_express_no(load_taobao())
+    print(gateway_order_list())
+    uvicorn.run(app, host="127.0.0.1", port=12842)
