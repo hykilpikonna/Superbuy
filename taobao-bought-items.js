@@ -6,13 +6,21 @@
 // @author       Hykilpikonna
 // @match        https://buyertrade.taobao.com/trade/itemlist/list_bought_items.htm*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=taobao.com
-// @grant        none
+// @grant        GM.xmlHttpRequest
+// @grant        window.close
 // ==/UserScript==
 
 (async function() {
     'use strict';
 
     const GBK = new TextDecoder('GBK')
+
+    // Check for params
+    const params = new Proxy(new URLSearchParams(window.location.search), {
+        get: (searchParams, prop) => searchParams.get(prop),
+    });
+
+    if (!params.script) return
 
     /**
      * Get taobao bought item links
@@ -105,74 +113,14 @@
         }));
     }
 
-    /**
-     * Add CSS https://stackoverflow.com/a/33176845/7346633
-     */
-    function GM_addStyle(css) {
-        const style = document.getElementById("GM_addStyleBy8626") || (function() {
-            const style = document.createElement('style');
-            style.type = 'text/css';
-            style.id = "GM_addStyleBy8626";
-            document.head.appendChild(style);
-            return style;
-        })();
-        const sheet = style.sheet;
-        sheet.insertRule(css, (sheet.rules || sheet.cssRules || []).length);
+    // Wait for page to load
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
+    await sleep(2000);
 
-    /**
-     * Download text string as file
-     */
-    function download(filename, text)
-    {
-        const element = document.createElement('a')
-        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text))
-        element.setAttribute('download', filename)
-
-        element.style.display = 'none'
-        document.body.appendChild(element)
-        element.click()
-        document.body.removeChild(element)
-    }
-
-    /**
-     * Add interactive buttons
-     */
-    function addBtn()
-    {
-        console.log('addBtn called')
-        let div = document.createElement('div')
-        div.innerHTML = `
-            <div id="superbuy-inject">
-                <button id="btn-fill-items">Superbuy 添加物品</button>
-                <button id="btn-fill-delivery">Superbuy 同步运输</button>
-                <button id="btn-json-download">下载 JSON</button>
-            </div>
-        `
-        document.body.appendChild(div)
-
-        GM_addStyle(`
-        #superbuy-inject
-        {
-            position: absolute;
-            left: 0;
-            top: 100px;
-            z-index: 1000;
-            display: flex;
-            flex-direction: column
-        }
-        `)
-
-        document.getElementById('btn-fill-items').addEventListener('click', async () => {
-            let data = await getTaobaoLinks()
-
-        })
-
-        document.getElementById('btn-json-download').addEventListener('click', async () =>
-        {
-            download('bought_items.json', JSON.stringify(await getTaobaoLinks(), null, 2))
-        })
-    }
-
-    addBtn()
+    // Send taobao data back to the backend
+    let r = await (await fetch(`http://localhost:${params.script}/taobao`,
+        {method: "POST", body: JSON.stringify(await getTaobaoLinks())})).text()
+    if (r === "Up") window.close()
 })();
