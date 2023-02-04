@@ -1,4 +1,5 @@
 import os
+import sys
 import threading
 import urllib.parse
 import webbrowser
@@ -153,15 +154,19 @@ def fill_express_no(taobao_data: list[TaobaoOrder]):
                 continue
 
             # Find delivery company's id
-            data = {'warehouseId': i.WarehouseId, 'delivery_company': find_delivery_id(tb.delivery.expressName),
-                    'item_id': i.ItemId, 'express_no': tb.delivery.expressId}
+            data = {'itemId': i.ItemId,
+                    'warehouseId': i.WarehouseId,
+                    'deliveryCompany': str(find_delivery_id(tb.delivery.expressName)),
+                    'deliveryno': tb.delivery.expressId,
+                    'platform': '3', 'itemStatus': '0', 'desc': ' '}
 
             # Send request
             print(f'Filling express no for {i.GoodsName}')
-            resp = r.post('https://www.superbuy.com/order/diybuy/fillexpressno', data=data).json()
-            # Not my typo, it's their typo
-            assert resp['code'] == 'sucess', str(resp) + str(data)
-            print(resp)
+            # Mobile endpoint
+            resp = r.post(f'https://api.superbuy.com/gateway/transport/fillExpressno/{user_id()}', json=data,
+                          headers=sign_api(dict(r.headers)))
+            assert resp.json()['Code'] == 10000, resp.text + "\n" + str(data)
+            print(resp.json())
 
 
 def load_taobao(p: str = 'bought_items.json') -> list[TaobaoOrder]:
@@ -171,6 +176,8 @@ def load_taobao(p: str = 'bought_items.json') -> list[TaobaoOrder]:
 
 delivery_companies: list[SuperbuyDeliveryCompany] = jsn(Path('data/delivery.json').read_text('utf-8'))
 delivery_name_map = {d.name: d for d in delivery_companies}
+delivery_name_map.update({d.name.replace("快递", "物流"): d for d in delivery_companies})
+delivery_name_map.update({d.name.replace("物流", "快递"): d for d in delivery_companies})
 
 
 def find_delivery_id(name: str) -> int:
