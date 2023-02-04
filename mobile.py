@@ -195,7 +195,7 @@ class Handler(BaseHTTPRequestHandler):
             fill_express_no(taobao_data)
 
             # Stop process
-            raise KeyboardInterrupt()
+            sys.exit(0)
 
         # For desktop logins after captcha is added (not actually used)
         if self.path.lower() == '/login':
@@ -216,14 +216,7 @@ if __name__ == '__main__':
 
     # Start HTTP server asyncronously
     server = HTTPServer(("127.0.0.1", 12842), Handler)
-
-    def serve():
-        try:
-            server.serve_forever()
-        except KeyboardInterrupt:
-            server.server_close()
-
-    thread = threading.Thread(target=serve)
+    thread = threading.Thread(target=server.serve_forever)
     thread.start()
 
     # Open browser
