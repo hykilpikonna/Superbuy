@@ -93,17 +93,19 @@ def crawl(item_url: str) -> dict:
     id = get_url_param(item_url, 'id')
     out_path = Path(f'crawler/{id}.json')
 
+    if out_path.is_file():
+        return json.loads(out_path.read_text())
+
     while True:
-        if not out_path.is_file():
-            print(f'Crawling {id}...')
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            resp = r.post('https://front.superbuy.com/crawler/', data={"needSoldOutSkuInfo": 1, "location": 2, "goodUrl": item_url})
-            if resp.status_code != 200:
-                print(f"Request failed: {resp.status_code}")
-                assert input("Retry? [y/N]").lower() == 'y'
-                continue
-            out_path.write_text(resp.text)
-            return resp.json()
+        print(f'Crawling {id}...')
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        resp = r.post('https://front.superbuy.com/crawler/', data={"needSoldOutSkuInfo": 1, "location": 2, "goodUrl": item_url})
+        if resp.status_code != 200:
+            print(f"Request failed: {resp.status_code}")
+            assert input("Retry? [y/N]").lower() == 'y'
+            continue
+        out_path.write_text(resp.text)
+        return resp.json()
 
 
 def create_diy_order(create: list[TaobaoOrder]):
