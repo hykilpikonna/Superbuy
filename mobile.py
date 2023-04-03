@@ -27,6 +27,7 @@ r.headers.update({
 
 MIN_DATE = '2023-01-01'
 CONFIG_PATH = Path('.config/superbuy')
+PORT = 12943
 
 
 def user_id() -> str:
@@ -92,12 +93,12 @@ def get_url_param(url: str, param: str) -> str:
 def crawl(item_url: str) -> dict:
     id = get_url_param(item_url, 'id')
     out_path = Path(f'crawler/{id}.json')
+    print(f'Crawling {id}...')
 
     if out_path.is_file():
         return json.loads(out_path.read_text())
 
     while True:
-        print(f'Crawling {id}...')
         out_path.parent.mkdir(parents=True, exist_ok=True)
         resp = r.post('https://front.superbuy.com/crawler/', data={"needSoldOutSkuInfo": 1, "location": 2, "goodUrl": item_url})
         if resp.status_code != 200:
@@ -232,10 +233,10 @@ if __name__ == '__main__':
     print(login(auth['login'], auth['passwd']))
 
     # Start HTTP server asyncronously
-    server = HTTPServer(("127.0.0.1", 12842), Handler)
+    server = HTTPServer(("127.0.0.1", PORT), Handler)
     thread = threading.Thread(target=server.serve_forever)
     thread.start()
 
     # Open browser
-    webbrowser.open_new_tab(f"https://buyertrade.taobao.com/trade/itemlist/list_bought_items.htm?script=12842")
+    webbrowser.open_new_tab(f"https://buyertrade.taobao.com/trade/itemlist/list_bought_items.htm?script={PORT}")
 
