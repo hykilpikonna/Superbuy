@@ -7,6 +7,8 @@ This repo includes:
 1. A script to automatically add Taobao orders to Superbuy
 2. Analysis of superbuy order data to rank the best shipping methods
 
+**COPYRIGHT NOTICE**: Superbuy owns all rights to the data in this repo. If you are a Superbuy employee and would like me to remove this repo, please contact me.
+
 ## Analysis
 
 The analysis can be found in the jupyter notebook [analysis.ipynb](analysis.ipynb).
