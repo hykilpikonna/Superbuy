@@ -28,7 +28,7 @@ def write_entry(data):
 
 
 def setup_proxy(session: requests.Session, verbose: bool = True):
-    url = 'https://ifconfig.me/ip'
+    url = 'https://ip.me'
 
     # Setup proxy
     ip = session.get(url).text.strip()
