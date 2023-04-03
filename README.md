@@ -1,7 +1,15 @@
 # Superbuy
 
-Automatically add Taobao orders to Superbuy
+My scripts relating to the Superbuy delivery service.
 
+This repo includes: 
+
+1. A script to automatically add Taobao orders to Superbuy
+2. Analysis of superbuy order data to rank the best shipping methods
+
+## Analysis
+
+The analysis can be found in the jupyter notebook [analysis.ipynb](analysis.ipynb).
 
 ## Usage Guide
 
