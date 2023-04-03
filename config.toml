@@ -1,0 +1,2 @@
+# Moved the index data to .. to avoid IntelliJ being stuck on indexing it and processing file system changes
+index_path = "../SuperbuyData/index-data"

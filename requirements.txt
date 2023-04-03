@@ -4,3 +4,11 @@ hypy_utils
 uvicorn
 pysocks
 toml
+
+# Analysis
+seaborn
+matplotlib
+pandas
+numpy
+tqdm
+rapidjson

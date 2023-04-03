@@ -5,13 +5,13 @@ import json
 from pathlib import Path
 
 import requests
-
+import toml
 
 ses = requests.Session()
 ses.headers = {'accept-language': 'zh-CN'}
 
 
-out_path = Path('index-data')
+out_path = toml.loads(Path('config.toml').read_text())['index_path']
 out_path.mkdir(exist_ok=True)
 
 
