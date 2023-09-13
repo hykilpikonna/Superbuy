@@ -13,6 +13,7 @@ import requests
 import toml
 from hypy_utils import json_stringify
 from hypy_utils.serializer import pickle_decode, pickle_encode
+from hypy_utils.logging_utils import setup_logger
 
 from dotdotbuy_auth import sign_params, sign_api
 from popos.gateway_order import *
@@ -25,9 +26,11 @@ r.headers.update({
     'app-key': 'aaa',
 })
 
-MIN_DATE = '2023-01-01'
+MIN_DATE = '2023-09-03'
 CONFIG_PATH = Path('.config/superbuy')
 PORT = 12943
+
+log = setup_logger()
 
 
 def user_id() -> str:
@@ -48,7 +51,7 @@ def login(user: str, passwd: str) -> LoginData:
     r.headers.update({'accessToken': data.accessToken})
     r.headers.update({'userId': str(data.userId)})
 
-    print(f'Successfully logged in as {user}')
+    log.info(f'Successfully logged in as {user}')
     return data
 
 
@@ -56,7 +59,7 @@ def login_cached(user: str, passwd: str):
     global r
     p = CONFIG_PATH / f'ss_{user.replace("@", "_").replace(".", "_")}.pickle'
     if p.is_file():
-        print(f'Using cached login session for {user}')
+        log.info(f'Using cached login session for {user}')
         r = pickle_decode(p.read_bytes())
         return
     login(user, passwd)
@@ -78,8 +81,8 @@ def gateway_order_list(limit: int = 200, type: Literal['storage', 'payment', 'al
     """
     # Mobile
     endpoint = f'https://api.superbuy.com/gateway/orderpkg/list/{user_id()}/1/{limit}'
-    print(endpoint)
-    print(sign_api(dict(r.headers)))
+    log.debug(endpoint)
+    log.debug(sign_api(dict(r.headers)))
     req = r.get(endpoint, params=dict(type=type, orderType=orderType), headers=sign_api(dict(r.headers)))
     resp: PaginatedResponse = jsn(req)
     assert resp.Code == 10000, resp
@@ -93,7 +96,7 @@ def get_url_param(url: str, param: str) -> str:
 def crawl(item_url: str) -> dict:
     id = get_url_param(item_url, 'id')
     out_path = Path(f'crawler/{id}.json')
-    print(f'Crawling {id}...')
+    log.info(f'Crawling {id}...')
 
     if out_path.is_file():
         return json.loads(out_path.read_text())
@@ -102,7 +105,7 @@ def crawl(item_url: str) -> dict:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         resp = r.post('https://front.superbuy.com/crawler/', data={"needSoldOutSkuInfo": 1, "location": 2, "goodUrl": item_url})
         if resp.status_code != 200:
-            print(f"Request failed: {resp.status_code}")
+            log.error(f"Request failed: {resp.status_code}")
             assert input("Retry? [y/N]").lower() == 'y'
             continue
         out_path.write_text(resp.text)
@@ -135,27 +138,35 @@ def create_diy_order(create: list[TaobaoOrder]):
 
         out = [CreateOrder('', shop_id, shop_name, goods)]
 
-        print(f'Orders {c.id} created, sending...')
+        log.info(f'Orders {c.id} created, sending...')
         j = json_stringify({'diy': out, 'transport': {'list': []}})
         Path(f'crawler/order_{c.id}_created.json').write_text(j, 'utf-8')
         resp = r.post('https://front.superbuy.com/order/transport/create-diy-order', data=j.encode('utf-8'),
                       headers={'content-type': 'application/json; charset=UTF-8'}).json()
-        print(resp)
+        log.debug(resp)
 
 
 def fill_express_no(taobao_data: list[TaobaoOrder]):
+    log.info("Filling express numbers")
     orders = gateway_order_list(orderType=4)
     for o in orders:
         for i in o.Items:
             # 审核通过 means the delivery number hasn't been inputted yet
             if i.StatusName != '审核通过':
+                log.debug(f"Item {i.ItemId} has status {i.StatusName}, skipped.")
                 continue
 
             # Find item in taobao
             tb = next(to for to in taobao_data for ti in to.items if get_url_param(ti.url, 'id') == i.goodsCode)
 
             # Check delivery status
-            if tb.status != '卖家已发货' and tb.status != '快件已签收':
+            if tb.status not in {'卖家已发货', '快件已签收', '快件已揽收', '物流运输中'}:
+                log.debug(f"Item {i.ItemId} has status code {tb.status}, skipped.")
+                continue
+
+            # Check if delivery id exists
+            if not tb.delivery.expressId:
+                log.debug(f"Item {i.ItemId} has no delivery id, skipped.")
                 continue
 
             # Find delivery company's id
@@ -166,12 +177,12 @@ def fill_express_no(taobao_data: list[TaobaoOrder]):
                     'platform': '3', 'itemStatus': '0', 'desc': ' '}
 
             # Send request
-            print(f'Filling express no for {i.GoodsName}')
+            log.info(f'Filling express no for {i.GoodsName}')
             # Mobile endpoint
             resp = r.post(f'https://api.superbuy.com/gateway/transport/fillExpressno/{user_id()}', json=data,
                           headers=sign_api(dict(r.headers)))
             assert resp.json()['Code'] == 10000, resp.text + "\n" + str(data)
-            print(resp.json())
+            log.debug(resp.json())
 
 
 def load_taobao(p: str = 'bought_items.json') -> list[TaobaoOrder]:
@@ -197,12 +208,12 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write("Up".encode())
 
-        print("Received!")
+        log.info("Taobao data received!")
         body = self.rfile.read(int(self.headers.get('content-length', 0))).decode()
 
         if self.path.lower() == '/taobao':
             taobao_data: list[TaobaoOrder] = jsn(body)
-            print(taobao_data)
+            log.debug(taobao_data)
             create_diy_order(taobao_data)
             fill_express_no(taobao_data)
 
@@ -215,7 +226,7 @@ class Handler(BaseHTTPRequestHandler):
             cookies = [[urllib.parse.unquote(k) for k in c.strip().split("=", 1)] for c in body.split(";")]
             # noinspection PyTypeChecker
             r.cookies.update(dict(cookies))
-            print(app_order_list())
+            log.debug(app_order_list())
 
     def do_OPTIONS(self):
         self.send_response(200, "ok")
@@ -230,7 +241,7 @@ if __name__ == '__main__':
 
     auth = toml.loads(Path(args.auth).read_text())
 
-    print(login(auth['login'], auth['passwd']))
+    log.info(login(auth['login'], auth['passwd']))
 
     # Start HTTP server asyncronously
     server = HTTPServer(("127.0.0.1", PORT), Handler)
